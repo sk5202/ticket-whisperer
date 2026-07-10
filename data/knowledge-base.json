@@ -1,0 +1,146 @@
+[
+  {
+    "id": "KB-001",
+    "title": "Orders stuck in 'Processing' after ERP export job times out",
+    "problem": "Customer reported that roughly 40 orders placed during a weekend promotion never moved past the 'Processing' status. The nightly ERP export job had been timing out silently, so order confirmations were never sent back to the storefront. Their warehouse team had no visibility into the backlog until customers started calling.",
+    "resolution": "Identified that the export batch size of 500 orders exceeded the ERP connector's 120-second timeout during peak volume. Reduced batch size to 100, enabled the retry-with-backoff flag on the connector, and replayed the stuck orders from the export queue. Added a monitoring alert that fires when any order sits in 'Processing' for more than 2 hours.",
+    "category": "Order Management",
+    "tags": ["stuck-orders", "erp-export", "timeout", "batch-processing", "order-status"]
+  },
+  {
+    "id": "KB-002",
+    "title": "Duplicate order lines created when customers double-click 'Place Order'",
+    "problem": "A merchant noticed intermittent duplicate line items on orders, always with identical timestamps. Investigation of their session logs showed customers double-clicking the checkout submit button on slow connections, firing the order-create endpoint twice before the first request completed.",
+    "resolution": "Enabled idempotency keys on the order-create API endpoint so repeat submissions within a 60-second window return the original order instead of creating a new one. Also advised the merchant to update their storefront theme to disable the submit button after the first click. No data cleanup was required beyond voiding 12 duplicate orders.",
+    "category": "Order Management",
+    "tags": ["duplicate-orders", "checkout", "idempotency", "api", "double-submit"]
+  },
+  {
+    "id": "KB-003",
+    "title": "Partial shipments not splitting fulfillment records correctly",
+    "problem": "When the warehouse shipped an order in two parcels, the second shipment overwrote the tracking number of the first instead of creating a separate fulfillment record. Customers received tracking emails pointing at the wrong parcel.",
+    "resolution": "Root cause was the fulfillment sync mapping keyed on order ID rather than shipment ID, so the second shipment updated the existing record. Changed the mapping key to the ERP shipment reference and backfilled the affected fulfillments for the previous 30 days. Verified with the customer that split-shipment tracking emails now show both parcels.",
+    "category": "Order Management",
+    "tags": ["fulfillment", "split-shipment", "tracking", "sync-mapping"]
+  },
+  {
+    "id": "KB-004",
+    "title": "Warehouse stock counts drift out of sync after cycle counts",
+    "problem": "Customer's physical cycle counts in the ERP were not reflected on the storefront, leading to overselling of two popular SKUs. The inventory delta feed only picked up transactional movements (sales, receipts) and ignored manual adjustment journals.",
+    "resolution": "Enabled the 'include adjustment journals' option on the inventory sync profile, which the customer's original implementation partner had left disabled. Ran a full inventory reconciliation to reset baseline quantities across all 3,400 SKUs. Stock levels have matched within the 15-minute sync window since.",
+    "category": "Inventory",
+    "tags": ["stock-mismatch", "cycle-count", "inventory-sync", "overselling", "adjustment-journal"]
+  },
+  {
+    "id": "KB-005",
+    "title": "Negative available-to-promise quantities blocking product pages",
+    "problem": "Several products showed as unavailable even though the warehouse had stock. The available-to-promise calculation was subtracting open backorders twice — once from the ERP feed and once from the platform's own reservation engine — pushing computed availability below zero.",
+    "resolution": "Turned off platform-side reservations for the affected channel since the ERP feed already accounted for allocations, eliminating the double subtraction. Wrote a one-time script to clear stale reservations older than 90 days. Documented the rule that a channel should use exactly one allocation source.",
+    "category": "Inventory",
+    "tags": ["available-to-promise", "negative-stock", "reservations", "double-counting"]
+  },
+  {
+    "id": "KB-006",
+    "title": "New SKUs missing from storefront despite successful product sync",
+    "problem": "The customer added 200 new SKUs in their ERP and the product sync reported success, but the items never appeared on the storefront. The products had been created without a default warehouse assignment, so the inventory feed skipped them and they stayed at zero stock with 'hide when out of stock' enabled.",
+    "resolution": "Assigned the new SKUs to the customer's primary warehouse in the ERP and re-ran the inventory feed, after which all 200 items appeared correctly. Added a validation warning to the sync report that flags products with no warehouse assignment so this fails loudly in the future.",
+    "category": "Inventory",
+    "tags": ["missing-products", "product-sync", "warehouse-assignment", "zero-stock"]
+  },
+  {
+    "id": "KB-007",
+    "title": "Customer-specific tier pricing not applying at checkout",
+    "problem": "A wholesale buyer entitled to tier-3 contract pricing was being charged list price at checkout, though the correct price showed on the product detail page. The pricing service cached the anonymous price list at the cart layer and only re-evaluated customer group pricing on page views, not on cart recalculation.",
+    "resolution": "Patched the cart pricing hook to pass the authenticated customer group on every recalculation instead of falling back to the cached anonymous list. Cleared the price cache for the affected customer group and confirmed with a test order that tier-3 pricing now applies end to end. Issued a credit memo for the three orders placed at the wrong price.",
+    "category": "Pricing",
+    "tags": ["tier-pricing", "customer-group", "checkout", "price-cache", "b2b"]
+  },
+  {
+    "id": "KB-008",
+    "title": "Checkout tax miscalculation for mixed taxable and exempt carts",
+    "problem": "Orders containing both taxable goods and tax-exempt service items were being taxed on the full cart total. The tax engine integration sent a single cart-level taxable amount instead of line-level tax codes, so exempt lines inherited the default taxable code.",
+    "resolution": "Switched the tax connector from summary mode to line-item mode and mapped the ERP item tax groups to the tax engine's exemption codes. Recalculated tax on the 17 affected open orders and generated adjustment invoices for the closed ones. Verified exempt lines now carry zero tax in the sandbox and production.",
+    "category": "Pricing",
+    "tags": ["tax", "checkout", "exemption", "line-item", "tax-codes"]
+  },
+  {
+    "id": "KB-009",
+    "title": "Currency rounding differences causing one-cent invoice mismatches",
+    "problem": "Finance flagged that storefront order totals and ERP invoice totals differed by one cent on a small percentage of multi-line orders in EUR. The storefront rounded per line, while the ERP rounded the summed total, producing classic penny-rounding drift.",
+    "resolution": "Aligned both systems to per-line rounding (banker's rounding) by changing the ERP invoice rounding profile for the affected company code. Agreed with the customer's finance team that historical one-cent variances under a threshold would be written off via a bulk adjustment rather than corrected individually.",
+    "category": "Pricing",
+    "tags": ["rounding", "currency", "invoice-mismatch", "finance", "multi-currency"]
+  },
+  {
+    "id": "KB-010",
+    "title": "Webhook deliveries duplicated after endpoint returned slow 200s",
+    "problem": "The customer's middleware was receiving every order webhook two or three times, causing duplicate records downstream. Their endpoint took 25-40 seconds to respond because it processed the payload synchronously, so our delivery service hit its 20-second timeout and retried even though the original request eventually succeeded.",
+    "resolution": "Advised the customer to acknowledge webhooks immediately with a 200 and process payloads asynchronously from a queue, which they implemented. Also pointed them at the delivery ID header so their consumer can deduplicate defensively. Duplicate deliveries dropped to zero after the change.",
+    "category": "Integration",
+    "tags": ["webhooks", "duplicates", "timeout", "retries", "async-processing"]
+  },
+  {
+    "id": "KB-011",
+    "title": "ERP connector failing after upstream API version deprecation",
+    "problem": "All syncs began failing overnight with HTTP 410 errors. The customer's ERP vendor had sunset the v2 REST API on schedule, but the connector instance was still pinned to the v2 base path from its original 2023 setup.",
+    "resolution": "Updated the connector configuration to the v3 API base path and remapped two renamed fields (customer reference and delivery block flag) that changed between versions. Replayed the failed sync queue in chronological order to preserve document sequencing. Full sync health restored within two hours of the fix.",
+    "category": "Integration",
+    "tags": ["erp-connector", "api-deprecation", "http-410", "field-mapping", "sync-failure"]
+  },
+  {
+    "id": "KB-012",
+    "title": "Sales order sync rejected by ERP due to missing payment terms mapping",
+    "problem": "Orders from a newly launched storefront country failed to create in the ERP with the error 'payment terms not maintained'. The new payment provider introduced a 'pay-in-30' method that had no mapping to an ERP payment terms key, so every order using it was rejected at the interface.",
+    "resolution": "Added a mapping entry translating the new payment method to the appropriate ERP payment terms key and set a catch-all default that routes unmapped methods to a review queue instead of hard-failing. Reprocessed the 62 rejected orders successfully. Recommended the customer include integration mapping review in their launch checklist for new payment methods.",
+    "category": "Integration",
+    "tags": ["order-sync", "payment-terms", "mapping", "erp-rejection", "new-market"]
+  },
+  {
+    "id": "KB-013",
+    "title": "SSO users trapped in redirect loop after identity provider certificate rotation",
+    "problem": "Every SSO login attempt bounced between the storefront and the identity provider in an endless redirect loop, locking out all B2B buyers for one tenant. The customer's IT team had rotated their SAML signing certificate but only updated it in one of two configured environments, so signature validation failed and the platform restarted the auth flow.",
+    "resolution": "Uploaded the new signing certificate to the production SSO profile and enabled dual-certificate support so the old and new certificates are both accepted during future rotations. Logins recovered immediately. Shared a certificate rotation runbook with the customer's IT team to prevent recurrence.",
+    "category": "Authentication",
+    "tags": ["sso", "saml", "redirect-loop", "certificate-rotation", "lockout"]
+  },
+  {
+    "id": "KB-014",
+    "title": "Password reset emails never arriving for one customer domain",
+    "problem": "Buyers from a single company domain reported that password reset emails never arrived, while other domains received them within seconds. Message logs showed the recipient's mail gateway silently quarantining the emails because our sending domain's DMARC alignment had broken after a recent email service migration.",
+    "resolution": "Fixed the DKIM selector record that was left pointing at the old email provider, restoring DMARC alignment for the sending domain. Asked the customer's IT team to release the quarantined messages and confirmed test resets landed in the inbox. Added DMARC monitoring so alignment breakage alerts us before customers notice.",
+    "category": "Authentication",
+    "tags": ["password-reset", "email-deliverability", "dmarc", "dkim", "quarantine"]
+  },
+  {
+    "id": "KB-015",
+    "title": "Order history table unusable on mobile for buyers with large catalogs",
+    "problem": "B2B buyers browsing on phones complained the order history page was effectively broken: the twelve-column table forced horizontal scrolling, action buttons overlapped, and tapping a row often triggered the wrong link. Frustration was highest among field sales reps who reorder from their phones.",
+    "resolution": "Shipped a responsive card layout for viewports under 768px that shows the five most-used fields with an expandable detail section, replacing the raw table on mobile. Increased tap target sizes to meet accessibility guidelines. Mobile reorder completion rate for the tenant improved noticeably in the following two weeks.",
+    "category": "UI/UX",
+    "tags": ["mobile", "responsive", "order-history", "accessibility", "b2b-buyers"]
+  },
+  {
+    "id": "KB-016",
+    "title": "Bulk order CSV upload gives unhelpful error on invalid rows",
+    "problem": "Customers using the bulk order upload were seeing a generic 'upload failed' message whenever any single row was invalid, forcing them to hunt through 500-row spreadsheets by hand. Most failures were simple issues like discontinued SKUs or quantity fields containing thousands separators.",
+    "resolution": "Changed the upload validator to process all rows, accept the valid ones, and return a downloadable error report listing each rejected row with its line number and reason. Also added tolerant parsing for common number formats. Support tickets about bulk uploads dropped sharply after release.",
+    "category": "UI/UX",
+    "tags": ["csv-upload", "bulk-order", "error-messages", "validation", "usability"]
+  },
+  {
+    "id": "KB-017",
+    "title": "Product listing pages taking 8+ seconds to load during business hours",
+    "problem": "Category pages that normally rendered in under a second were taking 8-12 seconds between 9am and 5pm. Profiling showed every page view was making a live call to the ERP pricing service for all 48 products on the page, and the ERP slowed dramatically under its own daytime batch load.",
+    "resolution": "Introduced a 5-minute read-through cache for list-page pricing with immediate invalidation on price-change events, cutting ERP calls per page from 48 to near zero on warm cache. Page load times returned to under one second at all hours. Real-time pricing remains in place on the product detail and cart pages where accuracy matters most.",
+    "category": "Performance",
+    "tags": ["slow-pages", "caching", "erp-pricing", "category-page", "load-time"]
+  },
+  {
+    "id": "KB-018",
+    "title": "Recurring request for consolidated monthly invoice across child accounts",
+    "problem": "A buying group asked whether the platform could produce one consolidated monthly invoice covering purchases from all twelve of their child accounts, instead of per-order invoices. This is a billing process question rather than a defect, but it kept resurfacing from different contacts at the same organization.",
+    "resolution": "Explained that consolidated invoicing is handled on the ERP side via collective billing runs, and worked with the customer's ERP administrator to configure a monthly billing schedule grouped by the parent account. Documented the setup in their tenant notes so future contacts get a consistent answer without re-investigation.",
+    "category": "Other",
+    "tags": ["billing", "consolidated-invoice", "parent-child-accounts", "how-to", "process-question"]
+  }
+]

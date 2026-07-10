@@ -4,6 +4,12 @@
 
 > 🏆 Built for the **Mesh API Hackathon (July 5–12, 2026)**
 
+### 🌐 Live demo: **[ticket-whisperer.onrender.com](https://ticket-whisperer.onrender.com)**
+
+No setup needed — open the link, paste your **Mesh API key** in the 🔑 field (stored only in your browser, used only for your own requests), pick a sample ticket, and hit **⚡ Analyze**.
+
+> ⏳ Free-tier hosting: if the app was idle, the first load can take ~30–50 s to wake up — refresh once and it's instant after that.
+
 Paste a raw support ticket. Ticket Whisperer classifies it, finds the most similar solved tickets from your knowledge base, and drafts both a customer-facing reply and an internal triage note — routing every step through [Mesh API](https://api.meshapi.ai/v1) to the cheapest model that can do that job well. A live cost meter shows exactly what the analysis cost versus running the whole pipeline on a flagship model.
 
 ---

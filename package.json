@@ -1,0 +1,17 @@
+{
+  "name": "ticket-whisperer",
+  "version": "1.0.0",
+  "description": "Ticket Whisperer - AI support ticket triage powered by Mesh API (Mesh API Hackathon)",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev:mock": "node dev/start-with-mock.js"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2"
+  }
+}

@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ticket Whisperer — AI Support Triage</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg-glow-1: rgba(124, 108, 246, 0.14);
+    --bg-glow-2: rgba(88, 101, 242, 0.08);
+    --surface: rgba(255, 255, 255, 0.04);
+    --surface-2: rgba(255, 255, 255, 0.06);
+    --border: rgba(255, 255, 255, 0.09);
+    --border-soft: rgba(255, 255, 255, 0.06);
+    --accent: #8b7cf8;
+    --accent-soft: rgba(139, 124, 248, 0.16);
+    --accent-border: rgba(139, 124, 248, 0.45);
+    --green: #34d399;
+    --green-soft: rgba(52, 211, 153, 0.14);
+    --red: #f87171;
+    --red-soft: rgba(248, 113, 113, 0.12);
+    --orange: #fb923c;
+    --blue: #60a5fa;
+    --gray: #94a3b8;
+    --text: #e6e9f2;
+    --text-dim: #9aa3b8;
+    --text-faint: #6b7590;
+    --mono: ui-monospace, SFMono-Regular, "Cascadia Mono", Consolas, Menlo, monospace;
+    --radius: 14px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { max-width: 100%; overflow-x: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    line-height: 1.55;
+    min-height: 100vh;
+    position: relative;
+  }
+  /* ambient glows */
+  body::before, body::after {
+    content: "";
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(90px);
+    pointer-events: none;
+    z-index: 0;
+  }
+  body::before { width: 560px; height: 560px; top: -220px; left: 50%; transform: translateX(-50%); background: var(--bg-glow-1); }
+  body::after  { width: 480px; height: 480px; bottom: -240px; right: -140px; background: var(--bg-glow-2); }
+
+  .wrap { position: relative; z-index: 1; max-width: 980px; margin: 0 auto; padding: 40px 20px 72px; }
+
+  /* ---------- header ---------- */
+  header { text-align: center; margin-bottom: 34px; }
+  header h1 {
+    font-size: clamp(1.9rem, 4.5vw, 2.7rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(120deg, #f3f1ff 30%, #b7abff 70%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  header .tagline { margin-top: 8px; color: var(--text-dim); font-size: 1.02rem; }
+  .model-badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 16px; }
+  .mbadge {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 0.78rem; font-weight: 600; color: var(--text-dim);
+    padding: 5px 12px; border-radius: 999px;
+    background: var(--surface); border: 1px solid var(--border-soft);
+    backdrop-filter: blur(8px);
+  }
+  .mbadge .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+  /* ---------- cards / glass ---------- */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+
+  /* ---------- input ---------- */
+  .input-card { padding: 20px; margin-bottom: 30px; }
+  .key-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 14px; }
+  .key-row label { font-size: 0.82rem; font-weight: 600; color: var(--text-dim); white-space: nowrap; }
+  #apiKeyInput {
+    flex: 1; min-width: 220px;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font: inherit; font-size: 0.85rem;
+    padding: 9px 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  #apiKeyInput:focus { outline: none; border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--accent-soft); }
+  #apiKeyInput::placeholder { color: var(--text-faint); }
+  #keyToggle {
+    font-size: 0.78rem; color: var(--text-dim);
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 12px; cursor: pointer;
+    font-family: inherit; transition: all 0.18s; white-space: nowrap;
+  }
+  #keyToggle:hover { border-color: var(--accent-border); color: var(--text); }
+  .key-hint { flex-basis: 100%; font-size: 0.72rem; color: var(--text-faint); margin-top: -2px; }
+  textarea {
+    width: 100%; min-height: 132px; resize: vertical;
+    background: rgba(0, 0, 0, 0.28);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    font: inherit; font-size: 0.95rem;
+    padding: 14px 16px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  textarea:focus { outline: none; border-color: var(--accent-border); box-shadow: 0 0 0 3px var(--accent-soft); }
+  textarea::placeholder { color: var(--text-faint); }
+  .input-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; flex: 1; min-width: 0; }
+  .chip {
+    font-size: 0.78rem; font-weight: 500; color: var(--text-dim);
+    background: transparent; border: 1px solid var(--border);
+    border-radius: 999px; padding: 6px 12px; cursor: pointer;
+    transition: all 0.18s; font-family: inherit;
+    max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .chip:hover { border-color: var(--accent-border); color: var(--text); background: var(--accent-soft); }
+  #analyzeBtn {
+    display: inline-flex; align-items: center; gap: 9px;
+    background: linear-gradient(135deg, #7c6cf6, #6355e8);
+    color: #fff; border: none; border-radius: 10px;
+    font: inherit; font-size: 0.95rem; font-weight: 700;
+    padding: 12px 30px; cursor: pointer;
+    box-shadow: 0 4px 22px rgba(124, 108, 246, 0.35);
+    transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s;
+  }
+  #analyzeBtn:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(124, 108, 246, 0.5); }
+  #analyzeBtn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  /* ---------- error banner ---------- */
+  #errorBanner {
+    display: none; align-items: flex-start; gap: 10px;
+    background: var(--red-soft); border: 1px solid rgba(248, 113, 113, 0.4);
+    border-radius: 12px; padding: 14px 18px; margin-bottom: 26px;
+    color: #fecaca; font-size: 0.92rem;
+    animation: fadeUp 0.3s ease;
+  }
+  #errorBanner.show { display: flex; }
+  #errorBanner .eicon { font-size: 1.1rem; line-height: 1.4; }
+
+  /* ---------- pipeline ---------- */
+  .pipeline { display: flex; align-items: stretch; gap: 0; margin-bottom: 30px; }
+  .step {
+    flex: 1; min-width: 0; padding: 18px 16px;
+    text-align: center; position: relative;
+    transition: opacity 0.35s, border-color 0.35s, box-shadow 0.35s, background 0.35s;
+    opacity: 0.45;
+  }
+  .step .sicon { font-size: 1.55rem; }
+  .step h3 { font-size: 0.95rem; font-weight: 700; margin-top: 6px; letter-spacing: -0.01em; }
+  .step .smodel {
+    display: inline-block; margin-top: 8px;
+    font-size: 0.68rem; font-weight: 600; letter-spacing: 0.03em;
+    color: var(--text-dim);
+    background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-soft);
+    border-radius: 999px; padding: 3px 10px;
+    max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .step .sstatus { margin-top: 10px; font-size: 0.78rem; color: var(--text-faint); min-height: 1.4em; font-family: var(--mono); }
+  .step.running {
+    opacity: 1;
+    border-color: var(--accent-border);
+    background: var(--accent-soft);
+    animation: pulseGlow 1.5s ease-in-out infinite;
+  }
+  .step.running .sstatus { color: var(--accent); }
+  .step.done { opacity: 1; border-color: rgba(52, 211, 153, 0.4); background: var(--green-soft); }
+  .step.done .sstatus { color: var(--green); }
+  .step.errored { opacity: 1; border-color: rgba(248, 113, 113, 0.45); background: var(--red-soft); }
+  .step.errored .sstatus { color: var(--red); }
+  @keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(139, 124, 248, 0.35); }
+    50%      { box-shadow: 0 0 22px 3px rgba(139, 124, 248, 0.35); }
+  }
+  .spinner {
+    display: inline-block; width: 11px; height: 11px;
+    border: 2px solid var(--accent-soft); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+    vertical-align: -1px; margin-right: 5px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .connector { flex: 0 0 44px; display: flex; align-items: center; justify-content: center; position: relative; }
+  .connector .track { width: 100%; height: 3px; background: rgba(255, 255, 255, 0.08); border-radius: 2px; overflow: hidden; }
+  .connector .fill { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--green)); border-radius: 2px; transition: width 0.6s ease; }
+  .connector.active .fill { width: 100%; }
+
+  /* ---------- results ---------- */
+  .result-section { display: none; margin-bottom: 26px; animation: fadeUp 0.45s ease; }
+  .result-section.show { display: block; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+  .rs-title {
+    font-size: 0.75rem; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase;
+    color: var(--text-faint); margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .rs-title::after { content: ""; flex: 1; height: 1px; background: var(--border-soft); }
+
+  /* classification */
+  .class-card { padding: 18px 20px; }
+  .class-chips { display: flex; flex-wrap: wrap; gap: 9px; }
+  .cchip {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 0.82rem; font-weight: 600;
+    padding: 6px 14px; border-radius: 999px;
+    border: 1px solid;
+  }
+  .cchip .clabel { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; opacity: 0.65; }
+  .cchip.cat  { color: #c4b9ff; background: var(--accent-soft); border-color: var(--accent-border); }
+  .cchip.sent { color: var(--text); background: var(--surface-2); border-color: var(--border); }
+  .cchip.urg-low      { color: #cbd5e1; background: rgba(148, 163, 184, 0.14); border-color: rgba(148, 163, 184, 0.4); }
+  .cchip.urg-medium   { color: #93c5fd; background: rgba(96, 165, 250, 0.14);  border-color: rgba(96, 165, 250, 0.45); }
+  .cchip.urg-high     { color: #fdba74; background: rgba(251, 146, 60, 0.14);  border-color: rgba(251, 146, 60, 0.45); }
+  .cchip.urg-critical { color: #fca5a5; background: rgba(248, 113, 113, 0.15); border-color: rgba(248, 113, 113, 0.5); animation: pulseRed 1.6s ease-in-out infinite; }
+  @keyframes pulseRed {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(248, 113, 113, 0); }
+    50%      { box-shadow: 0 0 12px 1px rgba(248, 113, 113, 0.35); }
+  }
+  .class-summary { margin-top: 14px; color: var(--text-dim); font-size: 0.93rem; font-style: italic; }
+
+  /* similar tickets */
+  .sim-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+  .sim-card { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  .sim-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .sim-id {
+    font-family: var(--mono); font-size: 0.7rem; font-weight: 700; color: var(--accent);
+    background: var(--accent-soft); border-radius: 6px; padding: 2px 8px; white-space: nowrap;
+  }
+  .sim-pct { font-family: var(--mono); font-size: 0.8rem; font-weight: 700; color: var(--green); white-space: nowrap; }
+  .sim-title { font-size: 0.88rem; font-weight: 600; color: var(--text); }
+  .sim-bar { height: 5px; background: rgba(255, 255, 255, 0.07); border-radius: 3px; overflow: hidden; }
+  .sim-bar .sfill { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--green)); border-radius: 3px; transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
+  .sim-card details { border-top: 1px solid var(--border-soft); padding-top: 8px; margin-top: 2px; }
+  .sim-card summary {
+    cursor: pointer; font-size: 0.75rem; font-weight: 600; color: var(--text-faint);
+    list-style: none; user-select: none; transition: color 0.15s;
+  }
+  .sim-card summary::-webkit-details-marker { display: none; }
+  .sim-card summary::before { content: "▸ "; color: var(--accent); }
+  .sim-card details[open] summary::before { content: "▾ "; }
+  .sim-card summary:hover { color: var(--text-dim); }
+  .sim-res { margin-top: 8px; font-size: 0.83rem; color: var(--text-dim); white-space: pre-wrap; }
+
+  /* draft tabs */
+  .draft-card { overflow: hidden; }
+  .tabs { display: flex; border-bottom: 1px solid var(--border-soft); }
+  .tab {
+    flex: 1; background: transparent; border: none; color: var(--text-faint);
+    font: inherit; font-size: 0.86rem; font-weight: 600;
+    padding: 13px 10px; cursor: pointer; position: relative;
+    transition: color 0.2s;
+  }
+  .tab::after {
+    content: ""; position: absolute; left: 20%; right: 20%; bottom: -1px; height: 2px;
+    background: var(--accent); border-radius: 2px;
+    transform: scaleX(0); transition: transform 0.25s ease;
+  }
+  .tab.active { color: var(--text); }
+  .tab.active::after { transform: scaleX(1); }
+  .tab-panel { display: none; padding: 18px 20px; position: relative; }
+  .tab-panel.active { display: block; animation: fadeUp 0.25s ease; }
+  .draft-text {
+    font-size: 0.9rem; color: var(--text); white-space: pre-wrap;
+    background: rgba(0, 0, 0, 0.25); border: 1px solid var(--border-soft);
+    border-radius: 10px; padding: 16px 18px;
+    max-height: 380px; overflow-y: auto; overflow-wrap: break-word;
+  }
+  #internalNoteText { color: var(--text-dim); }
+  .copy-btn {
+    position: absolute; top: 28px; right: 32px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text-dim);
+    font: inherit; font-size: 0.75rem; font-weight: 600;
+    padding: 6px 12px; cursor: pointer; backdrop-filter: blur(6px);
+    transition: all 0.18s; z-index: 2;
+  }
+  .copy-btn:hover { color: var(--text); border-color: var(--accent-border); }
+  .copy-btn.copied { color: var(--green); border-color: rgba(52, 211, 153, 0.5); }
+
+  /* ---------- cost meter ---------- */
+  .cost-card {
+    padding: 26px 26px 30px;
+    border: 1px solid var(--accent-border);
+    background: linear-gradient(160deg, rgba(139, 124, 248, 0.10), rgba(255, 255, 255, 0.03) 55%);
+    box-shadow: 0 8px 44px rgba(124, 108, 246, 0.18);
+  }
+  .cost-headline { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 26px; margin-bottom: 22px; }
+  .cost-headline .big {
+    font-size: clamp(1.7rem, 4.5vw, 2.4rem); font-weight: 800; letter-spacing: -0.02em;
+    color: var(--green); font-variant-numeric: tabular-nums;
+  }
+  .cost-headline .big small { font-size: 0.5em; font-weight: 700; color: var(--green); }
+  .cost-headline .sub { color: var(--text-dim); font-size: 0.92rem; }
+  .cost-bars { display: flex; flex-direction: column; gap: 14px; }
+  .cbar-row { display: grid; grid-template-columns: minmax(120px, 175px) 1fr minmax(74px, auto); align-items: center; gap: 12px; }
+  .cbar-label { font-size: 0.8rem; font-weight: 600; color: var(--text-dim); text-align: right; }
+  .cbar-track { height: 22px; background: rgba(255, 255, 255, 0.06); border-radius: 6px; overflow: hidden; }
+  .cbar-fill { display: block; height: 100%; width: 0%; border-radius: 6px; transition: width 1.1s cubic-bezier(0.22, 1, 0.36, 1); }
+  .cbar-fill.smart { background: linear-gradient(90deg, #34d399, #6ee7b7); box-shadow: 0 0 14px rgba(52, 211, 153, 0.4); }
+  .cbar-fill.premium { background: linear-gradient(90deg, #64748b, #94a3b8); }
+  .cbar-val { font-family: var(--mono); font-size: 0.82rem; font-weight: 700; color: var(--text); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .cost-foot { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-soft); font-size: 0.82rem; color: var(--text-faint); }
+  .cost-foot b { color: var(--text-dim); font-weight: 600; }
+
+  footer { text-align: center; margin-top: 48px; color: var(--text-faint); font-size: 0.78rem; }
+
+  /* ---------- responsive ---------- */
+  @media (max-width: 720px) {
+    .wrap { padding: 28px 14px 56px; }
+    .pipeline { flex-direction: column; }
+    .connector { flex: 0 0 30px; }
+    .connector .track { width: 3px; height: 100%; min-height: 22px; }
+    .connector .fill { width: 100%; height: 0%; transition: height 0.6s ease; }
+    .connector.active .fill { height: 100%; }
+    .cbar-row { grid-template-columns: 1fr; gap: 4px; }
+    .cbar-label { text-align: left; }
+    .copy-btn { position: static; margin-bottom: 10px; }
+    .chip { flex: 1 1 auto; text-align: center; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>🎫 Ticket Whisperer</h1>
+    <p class="tagline">AI Support Triage — right model for the right job, routed through Mesh API</p>
+    <div class="model-badges">
+      <span class="mbadge"><span class="dot"></span>OpenAI GPT-4o-mini</span>
+      <span class="mbadge"><span class="dot"></span>Mesh Embeddings</span>
+      <span class="mbadge"><span class="dot"></span>Claude Sonnet 4.6</span>
+    </div>
+  </header>
+
+  <!-- input -->
+  <section class="card input-card">
+    <div class="key-row">
+      <label for="apiKeyInput">🔑 Mesh API Key</label>
+      <input id="apiKeyInput" type="password" placeholder="rsk_… — paste your Mesh API key to run the analysis" spellcheck="false" autocomplete="off" />
+      <button id="keyToggle" type="button" aria-label="Show or hide API key">👁 Show</button>
+      <span class="key-hint">Stored only in your browser (localStorage) and sent only to this local server — never committed, never logged. Leave empty to use the server's .env key.</span>
+    </div>
+    <textarea id="ticketInput" placeholder="Paste a customer support ticket…" spellcheck="false"></textarea>
+    <div class="input-row">
+      <div class="chips" id="sampleChips">
+        <button class="chip" data-sample="0">😡 Order stuck, no confirmation</button>
+        <button class="chip" data-sample="1">📦 Inventory mismatch</button>
+        <button class="chip" data-sample="2">🔐 Login loop after reset</button>
+      </div>
+      <button id="analyzeBtn"><span id="btnLabel">⚡ Analyze</span></button>
+    </div>
+  </section>
+
+  <!-- error -->
+  <div id="errorBanner" role="alert">
+    <span class="eicon">⚠️</span>
+    <div><strong>Something went wrong.</strong> <span id="errorMsg"></span></div>
+  </div>
+
+  <!-- pipeline -->
+  <section class="pipeline" aria-label="Analysis pipeline">
+    <div class="card step" id="step-classify">
+      <div class="sicon">🏷️</div>
+      <h3>1. Classify</h3>
+      <span class="smodel" id="model-classify">OpenAI GPT-4o-mini</span>
+      <div class="sstatus" id="status-classify">idle</div>
+    </div>
+    <div class="connector" id="conn-1"><span class="track"><span class="fill"></span></span></div>
+    <div class="card step" id="step-retrieve">
+      <div class="sicon">🔍</div>
+      <h3>2. Find Similar Tickets</h3>
+      <span class="smodel" id="model-retrieve">Mesh Embeddings</span>
+      <div class="sstatus" id="status-retrieve">idle</div>
+    </div>
+    <div class="connector" id="conn-2"><span class="track"><span class="fill"></span></span></div>
+    <div class="card step" id="step-draft">
+      <div class="sicon">✍️</div>
+      <h3>3. Draft Response</h3>
+      <span class="smodel" id="model-draft">Claude Sonnet 4.6</span>
+      <div class="sstatus" id="status-draft">idle</div>
+    </div>
+  </section>
+
+  <!-- results: classification -->
+  <section class="result-section" id="rs-classify">
+    <div class="rs-title">🏷️ Classification</div>
+    <div class="card class-card">
+      <div class="class-chips" id="classChips"></div>
+      <p class="class-summary" id="classSummary"></p>
+    </div>
+  </section>
+
+  <!-- results: similar tickets -->
+  <section class="result-section" id="rs-retrieve">
+    <div class="rs-title">🔍 Similar Resolved Tickets</div>
+    <div class="sim-grid" id="simGrid"></div>
+  </section>
+
+  <!-- results: draft -->
+  <section class="result-section" id="rs-draft">
+    <div class="rs-title">✍️ Drafted Response</div>
+    <div class="card draft-card">
+      <div class="tabs">
+        <button class="tab active" data-tab="reply">💬 Customer Reply</button>
+        <button class="tab" data-tab="note">🗒️ Internal Note</button>
+      </div>
+      <div class="tab-panel active" id="panel-reply">
+        <button class="copy-btn" id="copyBtn">📋 Copy</button>
+        <div class="draft-text" id="customerReplyText"></div>
+      </div>
+      <div class="tab-panel" id="panel-note">
+        <div class="draft-text" id="internalNoteText"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- cost meter -->
+  <section class="result-section" id="rs-cost">
+    <div class="rs-title">💸 Smart Routing Savings</div>
+    <div class="card cost-card">
+      <div class="cost-headline">
+        <span class="big"><span id="savingsPct">0</span><small>%</small> saved</span>
+        <span class="sub">by routing each step to the right model instead of a flagship for everything</span>
+      </div>
+      <div class="cost-bars">
+        <div class="cbar-row">
+          <span class="cbar-label">This analysis (smart routing)</span>
+          <span class="cbar-track"><span class="cbar-fill smart" id="barSmart"></span></span>
+          <span class="cbar-val" id="valSmart">—</span>
+        </div>
+        <div class="cbar-row">
+          <span class="cbar-label">Flagship model for everything</span>
+          <span class="cbar-track"><span class="cbar-fill premium" id="barPremium"></span></span>
+          <span class="cbar-val" id="valPremium">—</span>
+        </div>
+      </div>
+      <div class="cost-foot">
+        <span>⏱️ Total time: <b id="totalTime">—</b></span>
+        <span>🧠 Models used: <b id="modelsUsed">—</b></span>
+      </div>
+    </div>
+  </section>
+
+  <footer>Built for the Mesh API Hackathon · one gateway, three models, zero waste</footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------- sample tickets ---------------- */
+  var SAMPLES = [
+    "Subject: Order #88214 stuck for 3 days — PAID but no confirmation!!\n\nThis is completely unacceptable. We placed a bulk order for 240 units of SKU TL-4420 on Monday and the payment of $4,812.00 was charged to our corporate card immediately. It is now Thursday and we have received NO confirmation email, the order still shows \"Processing\" in the portal, and our warehouse team has nothing to receive against. Our own customer is threatening to cancel their contract with us because of this delay. I have emailed twice and called once with no response. If this is not resolved by end of day we will dispute the charge and move our account elsewhere.\n\n— Procurement Lead, wholesale account #C-3391",
+    "Subject: Stock level mismatch on SKU WH-2210 (website vs warehouse)\n\nHi team, we're seeing a data inconsistency that's causing overselling. Your B2B storefront currently shows 50 units in stock for SKU WH-2210 (industrial shelving brackets), but when our fulfillment partner checked the warehouse feed this morning it reported only 8 units on hand. We already accepted two purchase orders from our resellers based on the website number and now we can't cover them. Can you confirm which figure is correct, when the inventory sync last ran, and whether backorders will be honored at the quoted price? We need an answer before our Friday order cutoff.\n\n— Operations Manager, account #B-1078",
+    "Subject: Locked out — infinite login loop after password reset on B2B portal\n\nSince yesterday afternoon our purchasing team cannot access the B2B portal. One of our buyers requested a password reset; after setting the new password, the portal accepts the credentials, briefly flashes the dashboard, then bounces straight back to the login screen. We've tried three different browsers, incognito mode, clearing cookies, and two different user accounts on our tenant — same loop every time. Multi-factor codes are being accepted, so it doesn't look like a credentials issue. We have a replenishment order due tomorrow and no way to submit it. Please escalate.\n\n— IT Coordinator, account #A-5527"
+  ];
+
+  /* ---------------- dom refs ---------------- */
+  var $ = function (id) { return document.getElementById(id); };
+  var ticketInput = $("ticketInput");
+  var analyzeBtn = $("analyzeBtn");
+
+  /* ---------------- API key (judge-friendly): persisted in localStorage ---------------- */
+  var apiKeyInput = $("apiKeyInput");
+  var keyToggle = $("keyToggle");
+  var KEY_STORAGE = "mesh_api_key";
+  try {
+    var savedKey = localStorage.getItem(KEY_STORAGE);
+    if (savedKey) apiKeyInput.value = savedKey;
+  } catch (e) { /* storage unavailable (private mode) — key just won't persist */ }
+  apiKeyInput.addEventListener("input", function () {
+    try { localStorage.setItem(KEY_STORAGE, apiKeyInput.value.trim()); } catch (e) {}
+  });
+  keyToggle.addEventListener("click", function () {
+    var hidden = apiKeyInput.type === "password";
+    apiKeyInput.type = hidden ? "text" : "password";
+    keyToggle.textContent = hidden ? "🙈 Hide" : "👁 Show";
+  });
+  var btnLabel = $("btnLabel");
+  var errorBanner = $("errorBanner");
+  var errorMsg = $("errorMsg");
+  var STEPS = ["classify", "retrieve", "draft"];
+  var STEP_CONN = { retrieve: "conn-1", draft: "conn-2" }; // connector that leads INTO a step
+
+  var running = false;
+
+  /* ---------------- helpers ---------------- */
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  function fmtUsd(v) {
+    v = Number(v);
+    if (!isFinite(v)) return "—";
+    if (v === 0) return "$0.0000";
+    var d = 4;
+    while (d < 7 && v * Math.pow(10, d) < 10) d++;
+    return "$" + v.toFixed(d);
+  }
+
+  function fmtMs(ms) {
+    ms = Number(ms);
+    if (!isFinite(ms)) return "—";
+    if (ms < 1000) return Math.round(ms) + " ms";
+    return (ms / 1000).toFixed(ms < 10000 ? 2 : 1) + " s";
+  }
+
+  function setStepStatus(step, html) { $("status-" + step).innerHTML = html; }
+
+  function setStepState(step, state) {
+    var el = $("step-" + step);
+    el.classList.remove("running", "done", "errored");
+    if (state !== "idle") el.classList.add(state);
+  }
+
+  function showError(msg) {
+    errorMsg.textContent = msg || "The analysis stream failed. Please try again.";
+    errorBanner.classList.add("show");
+    STEPS.forEach(function (s) {
+      var el = $("step-" + s);
+      if (el.classList.contains("running")) {
+        setStepState(s, "errored");
+        setStepStatus(s, "✕ failed");
+      }
+    });
+  }
+
+  function resetUI() {
+    errorBanner.classList.remove("show");
+    STEPS.forEach(function (s) {
+      setStepState(s, "idle");
+      setStepStatus(s, "idle");
+    });
+    ["conn-1", "conn-2"].forEach(function (c) { $(c).classList.remove("active"); });
+    ["rs-classify", "rs-retrieve", "rs-draft", "rs-cost"].forEach(function (id) {
+      $(id).classList.remove("show");
+    });
+    $("classChips").innerHTML = "";
+    $("classSummary").textContent = "";
+    $("simGrid").innerHTML = "";
+    $("customerReplyText").textContent = "";
+    $("internalNoteText").textContent = "";
+    $("barSmart").style.width = "0%";
+    $("barPremium").style.width = "0%";
+    $("savingsPct").textContent = "0";
+  }
+
+  function setBusy(busy) {
+    running = busy;
+    analyzeBtn.disabled = busy;
+    btnLabel.innerHTML = busy ? '<span class="spinner"></span> Analyzing…' : "⚡ Analyze";
+  }
+
+  /* ---------------- renderers ---------------- */
+  var URGENCY = { low: "urg-low", medium: "urg-medium", high: "urg-high", critical: "urg-critical" };
+
+  function sentimentEmoji(s) {
+    s = String(s || "").toLowerCase();
+    if (/angry|furious|irate|hostile/.test(s)) return "😡";
+    if (/frustrat|negative|upset|annoy|unhappy|dissatisf/.test(s)) return "😠";
+    if (/concern|worried|anxious|confus/.test(s)) return "😟";
+    if (/happy|positive|pleased|satisf|delight/.test(s)) return "😊";
+    return "😐";
+  }
+
+  function renderClassify(r) {
+    r = r || {};
+    var urgKey = String(r.urgency || "").toLowerCase();
+    var urgClass = URGENCY[urgKey] || "urg-low";
+    var html = "";
+    if (r.category) {
+      html += '<span class="cchip cat"><span class="clabel">Category</span>' + esc(r.category) + "</span>";
+    }
+    if (r.urgency) {
+      html += '<span class="cchip ' + urgClass + '"><span class="clabel">Urgency</span>' + esc(r.urgency) + "</span>";
+    }
+    if (r.sentiment) {
+      html += '<span class="cchip sent"><span class="clabel">Sentiment</span>' + sentimentEmoji(r.sentiment) + " " + esc(r.sentiment) + "</span>";
+    }
+    $("classChips").innerHTML = html;
+    $("classSummary").textContent = r.summary ? "“" + r.summary + "”" : "";
+    $("rs-classify").classList.add("show");
+  }
+
+  function renderRetrieve(r) {
+    var matches = (r && r.matches) || [];
+    var grid = $("simGrid");
+    grid.innerHTML = "";
+    matches.slice(0, 3).forEach(function (m, i) {
+      var pct = Math.max(0, Math.min(100, Math.round(Number(m.similarity) <= 1 ? Number(m.similarity) * 100 : Number(m.similarity))));
+      if (!isFinite(pct)) pct = 0;
+      var card = document.createElement("div");
+      card.className = "card sim-card";
+      card.innerHTML =
+        '<div class="sim-head"><span class="sim-id">' + esc(m.id) + '</span><span class="sim-pct">' + pct + '% match</span></div>' +
+        '<div class="sim-title">' + esc(m.title) + "</div>" +
+        '<div class="sim-bar"><span class="sfill"></span></div>' +
+        "<details" + (i === 0 ? " open" : "") + "><summary>Resolution</summary><div class=\"sim-res\">" + esc(m.resolution) + "</div></details>";
+      grid.appendChild(card);
+      // animate the bar in after layout
+      var fill = card.querySelector(".sfill");
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { fill.style.width = pct + "%"; });
+      });
+    });
+    if (!matches.length) {
+      grid.innerHTML = '<div class="card sim-card"><div class="sim-title" style="color:var(--text-faint)">No similar tickets found — this one is brand new.</div></div>';
+    }
+    $("rs-retrieve").classList.add("show");
+  }
+
+  function renderDraft(r) {
+    r = r || {};
+    $("customerReplyText").textContent = r.customer_reply || "";
+    $("internalNoteText").textContent = r.internal_note || "";
+    $("rs-draft").classList.add("show");
+  }
+
+  function animateCount(el, target, decimals, ms) {
+    var start = null;
+    function tick(t) {
+      if (start === null) start = t;
+      var p = Math.min(1, (t - start) / ms);
+      var eased = 1 - Math.pow(1 - p, 3);
+      el.textContent = (target * eased).toFixed(decimals);
+      if (p < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function renderDone(d) {
+    d = d || {};
+    var smart = Number(d.total_cost_usd) || 0;
+    var premium = Number(d.premium_cost_usd) || 0;
+    var pct = Number(d.savings_pct);
+    if (!isFinite(pct)) pct = premium > 0 ? ((premium - smart) / premium) * 100 : 0;
+
+    $("valSmart").textContent = fmtUsd(smart);
+    $("valPremium").textContent = fmtUsd(premium);
+    $("totalTime").textContent = fmtMs(d.total_ms);
+    $("modelsUsed").textContent = Array.isArray(d.models_used) ? d.models_used.join(" · ") : (d.models_used || "—");
+    $("rs-cost").classList.add("show");
+
+    var maxCost = Math.max(smart, premium) || 1;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        $("barPremium").style.width = Math.max(4, (premium / maxCost) * 100) + "%";
+        $("barSmart").style.width = Math.max(2.5, (smart / maxCost) * 100) + "%";
+      });
+    });
+    animateCount($("savingsPct"), Math.max(0, Math.min(100, pct)), pct >= 99.5 ? 1 : 0, 1200);
+    try { $("rs-cost").scrollIntoView({ behavior: "smooth", block: "nearest" }); } catch (e) {}
+  }
+
+  /* ---------------- event dispatch ---------------- */
+  function handleEvent(name, data) {
+    switch (name) {
+      case "step_start": {
+        var s = data.step;
+        if (STEPS.indexOf(s) === -1) return;
+        if (data.model) $("model-" + s).textContent = data.model;
+        setStepState(s, "running");
+        setStepStatus(s, '<span class="spinner"></span>running…');
+        if (STEP_CONN[s]) $(STEP_CONN[s]).classList.add("active");
+        break;
+      }
+      case "step_done": {
+        var s2 = data.step;
+        if (STEPS.indexOf(s2) === -1) return;
+        if (data.model) $("model-" + s2).textContent = data.model;
+        setStepState(s2, "done");
+        setStepStatus(s2, "✓ " + fmtMs(data.ms) + " · " + fmtUsd(data.cost_usd));
+        if (s2 === "classify") renderClassify(data.result);
+        else if (s2 === "retrieve") renderRetrieve(data.result);
+        else if (s2 === "draft") renderDraft(data.result);
+        break;
+      }
+      case "done":
+        renderDone(data);
+        break;
+      case "error":
+        showError(data && data.message);
+        break;
+      default:
+        // ignore unknown events (forward-compatible)
+        break;
+    }
+  }
+
+  /* ---------------- SSE-over-fetch parsing ---------------- */
+  function parseFrame(frame) {
+    // frame = raw text of one SSE event block (no trailing blank line)
+    var lines = frame.split(/\r?\n/);
+    var name = "message";
+    var dataParts = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (line.indexOf("event:") === 0) name = line.slice(6).trim();
+      else if (line.indexOf("data:") === 0) dataParts.push(line.slice(5).replace(/^ /, ""));
+      // ignore comments (:) and other fields (id:, retry:)
+    }
+    if (!dataParts.length) return null;
+    var raw = dataParts.join("\n");
+    var data;
+    try { data = JSON.parse(raw); } catch (e) { return null; }
+    return { name: name, data: data };
+  }
+
+  function analyze() {
+    if (running) return;
+    var ticket = ticketInput.value.trim();
+    if (!ticket) {
+      ticketInput.focus();
+      ticketInput.style.borderColor = "var(--accent-border)";
+      setTimeout(function () { ticketInput.style.borderColor = ""; }, 900);
+      return;
+    }
+
+    resetUI();
+    setBusy(true);
+    var gotDone = false;
+    var gotError = false;
+
+    var reqHeaders = { "Content-Type": "application/json" };
+    var userKey = apiKeyInput.value.trim();
+    if (userKey) reqHeaders["x-mesh-key"] = userKey;
+
+    fetch("/api/analyze", {
+      method: "POST",
+      headers: reqHeaders,
+      body: JSON.stringify({ ticket: ticket })
+    }).then(function (res) {
+      if (!res.ok) {
+        return res.text().then(function (t) {
+          var msg = "Server returned " + res.status;
+          try { var j = JSON.parse(t); if (j && (j.message || j.error)) msg = j.message || j.error; } catch (e) {}
+          throw new Error(msg);
+        });
+      }
+      if (!res.body) throw new Error("Streaming is not supported in this browser.");
+
+      var reader = res.body.getReader();
+      var decoder = new TextDecoder();
+      var buffer = "";
+
+      function drain(final) {
+        // split buffered text into complete frames on blank line
+        var idx;
+        while ((idx = buffer.search(/\r?\n\r?\n/)) !== -1) {
+          var sepLen = buffer.slice(idx).match(/^\r?\n\r?\n/)[0].length;
+          var frame = buffer.slice(0, idx);
+          buffer = buffer.slice(idx + sepLen);
+          if (frame.trim()) {
+            var evt = parseFrame(frame);
+            if (evt) {
+              if (evt.name === "done") gotDone = true;
+              if (evt.name === "error") gotError = true;
+              handleEvent(evt.name, evt.data);
+            }
+          }
+        }
+        if (final && buffer.trim()) {
+          var evt2 = parseFrame(buffer);
+          buffer = "";
+          if (evt2) {
+            if (evt2.name === "done") gotDone = true;
+            if (evt2.name === "error") gotError = true;
+            handleEvent(evt2.name, evt2.data);
+          }
+        }
+      }
+
+      function pump() {
+        return reader.read().then(function (r) {
+          if (r.done) {
+            buffer += decoder.decode(); // flush decoder
+            drain(true);
+            return;
+          }
+          buffer += decoder.decode(r.value, { stream: true });
+          drain(false);
+          return pump();
+        });
+      }
+      return pump();
+    }).then(function () {
+      if (!gotDone && !gotError) {
+        showError("The analysis stream ended unexpectedly.");
+      }
+    }).catch(function (err) {
+      var msg = (err && err.message) || "Network error";
+      if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+        msg = "Could not reach the backend at /api/analyze. Is the server running?";
+      }
+      showError(msg);
+    }).finally(function () {
+      setBusy(false);
+    });
+  }
+
+  /* ---------------- wiring ---------------- */
+  analyzeBtn.addEventListener("click", analyze);
+
+  ticketInput.addEventListener("keydown", function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") analyze();
+  });
+
+  $("sampleChips").addEventListener("click", function (e) {
+    var chip = e.target.closest(".chip");
+    if (!chip) return;
+    var idx = Number(chip.getAttribute("data-sample"));
+    if (SAMPLES[idx] != null) {
+      ticketInput.value = SAMPLES[idx];
+      ticketInput.focus();
+    }
+  });
+
+  // draft tabs
+  document.querySelectorAll(".tab").forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      document.querySelectorAll(".tab").forEach(function (t) { t.classList.remove("active"); });
+      document.querySelectorAll(".tab-panel").forEach(function (p) { p.classList.remove("active"); });
+      tab.classList.add("active");
+      $("panel-" + tab.getAttribute("data-tab")).classList.add("active");
+    });
+  });
+
+  // copy button
+  $("copyBtn").addEventListener("click", function () {
+    var text = $("customerReplyText").textContent;
+    var btn = $("copyBtn");
+    function ok() {
+      btn.textContent = "✅ Copied";
+      btn.classList.add("copied");
+      setTimeout(function () {
+        btn.textContent = "📋 Copy";
+        btn.classList.remove("copied");
+      }, 1600);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok).catch(function () { fallbackCopy(text, ok); });
+    } else {
+      fallbackCopy(text, ok);
+    }
+  });
+
+  function fallbackCopy(text, cb) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); cb(); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+})();
+</script>
+</body>
+</html>

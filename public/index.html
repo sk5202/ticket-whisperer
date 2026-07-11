@@ -485,6 +485,16 @@
     var savedKey = localStorage.getItem(KEY_STORAGE);
     if (savedKey) apiKeyInput.value = savedKey;
   } catch (e) { /* storage unavailable (private mode) — key just won't persist */ }
+  /* Prefill from the server's demo key so judges can hit Analyze with zero setup.
+     Never overwrites a key the visitor typed themselves. */
+  if (!apiKeyInput.value) {
+    fetch("/api/config").then(function (r) { return r.json(); }).then(function (cfg) {
+      if (cfg && cfg.prefillKey && !apiKeyInput.value) {
+        apiKeyInput.value = cfg.prefillKey;
+        try { localStorage.setItem(KEY_STORAGE, cfg.prefillKey); } catch (e) {}
+      }
+    }).catch(function () { /* no config endpoint / offline — field stays empty */ });
+  }
   apiKeyInput.addEventListener("input", function () {
     try { localStorage.setItem(KEY_STORAGE, apiKeyInput.value.trim()); } catch (e) {}
   });

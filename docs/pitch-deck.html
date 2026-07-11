@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ticket Whisperer — Pitch Deck</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { background: #0d0d12; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+  .slide {
+    width: 297mm; height: 167mm;
+    margin: 0 auto 12px auto;
+    padding: 18mm 22mm;
+    background: linear-gradient(135deg, #101018 0%, #16121f 100%);
+    color: #e8e8ee;
+    display: flex; flex-direction: column; justify-content: center;
+    position: relative; overflow: hidden;
+    page-break-after: always;
+  }
+  .slide::after {
+    content: attr(data-num);
+    position: absolute; bottom: 10mm; right: 14mm;
+    font-size: 10pt; color: #55516a;
+  }
+  .brand {
+    position: absolute; top: 10mm; left: 22mm;
+    font-size: 10pt; color: #7c6cf4; letter-spacing: 2px; font-weight: 600;
+  }
+  h1 { font-size: 40pt; font-weight: 800; line-height: 1.1; }
+  h2 { font-size: 26pt; font-weight: 700; margin-bottom: 10mm; color: #fff; }
+  h2 .accent, h1 .accent { color: #7c6cf4; }
+  p.sub { font-size: 15pt; color: #a8a4bc; margin-top: 6mm; line-height: 1.5; }
+  ul.big { list-style: none; font-size: 14.5pt; line-height: 1.65; }
+  ul.big li { margin-bottom: 6mm; padding-left: 11mm; position: relative; }
+  ul.big li::before { content: "▸"; position: absolute; left: 0; color: #7c6cf4; font-weight: 700; }
+  ul.big b { color: #fff; }
+  .pill {
+    display: inline-block; background: #241f38; border: 1px solid #3b3358;
+    color: #b9aef8; border-radius: 999px; padding: 2mm 6mm;
+    font-size: 11pt; margin: 0 2mm 3mm 0;
+  }
+  .cols { display: flex; gap: 10mm; align-items: stretch; }
+  .cols > div { flex: 1; }
+  .card {
+    background: #1a1626; border: 1px solid #2e2745; border-radius: 12px;
+    padding: 7mm 8mm;
+  }
+  .card h3 { font-size: 14pt; color: #b9aef8; margin-bottom: 3mm; }
+  .card p { font-size: 11.5pt; color: #c6c2d8; line-height: 1.5; }
+  .step { text-align: center; }
+  .step .model { font-family: Consolas, monospace; font-size: 10.5pt; color: #8f86ff; display: block; margin: 3mm 0; }
+  .arrowrow { display: flex; align-items: center; gap: 4mm; }
+  .arrow { color: #7c6cf4; font-size: 22pt; flex: 0 0 auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5pt; }
+  th, td { padding: 4mm 5mm; text-align: left; border-bottom: 1px solid #2e2745; }
+  th { color: #b9aef8; font-weight: 600; font-size: 11pt; text-transform: uppercase; letter-spacing: 1px; }
+  td { color: #d8d5e6; }
+  td.num { font-family: Consolas, monospace; color: #7ee2a8; }
+  .kbd { font-family: Consolas, monospace; background: #241f38; padding: 0.5mm 2.5mm; border-radius: 4px; font-size: 90%; color: #b9aef8; }
+  .footer-links { margin-top: 10mm; font-size: 12.5pt; line-height: 1.9; color: #a8a4bc; }
+  .footer-links b { color: #fff; }
+  .footer-links span { color: #8f86ff; font-family: Consolas, monospace; font-size: 11.5pt; }
+  .savings { font-size: 52pt; font-weight: 800; color: #7ee2a8; }
+  @media print {
+    html, body { background: #0d0d12; }
+    .slide { margin: 0; }
+    @page { size: 297mm 167mm; margin: 0; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SLIDE 1 — TITLE -->
+<section class="slide" data-num="1">
+  <div class="brand">MESH API HACKATHON · JULY 2026</div>
+  <h1>Ticket <span class="accent">Whisperer</span></h1>
+  <p class="sub">AI support-ticket triage that uses <b style="color:#fff">the right model for the right job</b> —<br>and proves the savings in real time.</p>
+  <div style="margin-top:12mm">
+    <span class="pill">Track: Multi-model</span>
+    <span class="pill">Solo build</span>
+    <span class="pill">ticket-whisperer.onrender.com</span>
+  </div>
+  <p class="sub" style="font-size:12pt; margin-top:14mm">Smiten Kalathiya · smiten.kalathiya6@gmail.com</p>
+</section>
+
+<!-- SLIDE 2 — PROBLEM -->
+<section class="slide" data-num="2">
+  <div class="brand">TICKET WHISPERER</div>
+  <h2>Support triage burns money <span class="accent">twice</span></h2>
+  <ul class="big">
+    <li><b>Human time.</b> Tier-1 agents spend minutes per ticket figuring out what it's about, whether it was solved before, and how to respond — before writing a single word.</li>
+    <li><b>Model waste.</b> Teams that automate this point one flagship LLM at everything. But classification is a cheap-model task, retrieval is an embeddings task — only the customer-facing draft needs premium reasoning.</li>
+    <li><b>Result:</b> paying flagship prices for work a model 20× cheaper does just as well.</li>
+  </ul>
+</section>
+
+<!-- SLIDE 3 — SOLUTION -->
+<section class="slide" data-num="3">
+  <div class="brand">TICKET WHISPERER</div>
+  <h2>One pipeline, three models, <span class="accent">one gateway</span></h2>
+  <div class="arrowrow">
+    <div class="card step" style="flex:1">
+      <h3>1 · CLASSIFY</h3>
+      <span class="model">openai/gpt-4o-mini</span>
+      <p>Category, urgency, sentiment as structured JSON. A frontier model adds nothing here except cost.</p>
+    </div>
+    <div class="arrow">→</div>
+    <div class="card step" style="flex:1">
+      <h3>2 · RETRIEVE</h3>
+      <span class="model">openai/text-embedding-3-small</span>
+      <p>Semantic search over solved tickets in the knowledge base. Embeddings, not chat — fractions of a cent.</p>
+    </div>
+    <div class="arrow">→</div>
+    <div class="card step" style="flex:1">
+      <h3>3 · DRAFT</h3>
+      <span class="model">anthropic/claude-sonnet-4.6</span>
+      <p>Customer reply + internal triage note, grounded in matched resolutions. The one step worth premium $$$.</p>
+    </div>
+  </div>
+  <p class="sub" style="text-align:center; margin-top:8mm">Every call routed through <b style="color:#fff">Mesh API</b> · one base URL · one key · per-call cost tracking</p>
+</section>
+
+<!-- SLIDE 4 — WHY MESH -->
+<section class="slide" data-num="4">
+  <div class="brand">TICKET WHISPERER</div>
+  <h2>Why <span class="accent">Mesh</span> makes this possible</h2>
+  <div class="cols">
+    <div class="card">
+      <h3>One API, 500+ models</h3>
+      <p>OpenAI + Anthropic + hundreds more behind a single OpenAI-compatible endpoint. Our three-provider pipeline is one base URL and one key — no SDK juggling.</p>
+    </div>
+    <div class="card">
+      <h3>Live cost transparency</h3>
+      <p>The app pulls live pricing from Mesh's <span class="kbd">/models</span> endpoint and computes the real cost of every step from actual token usage. No hardcoded price tables.</p>
+    </div>
+    <div class="card">
+      <h3>Instant model swapping</h3>
+      <p>Every step's model is an env var. Try a different classifier or drafter by changing one line in <span class="kbd">.env</span> — no code changes, no new SDKs.</p>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 5 — THE PROOF -->
+<section class="slide" data-num="5">
+  <div class="brand">TICKET WHISPERER</div>
+  <h2>The cost meter <span class="accent">proves it live</span></h2>
+  <div class="cols">
+    <div>
+      <table>
+        <tr><th>Step</th><th>Model via Mesh</th><th>Cost / analysis</th></tr>
+        <tr><td>Classify</td><td><span class="kbd">gpt-4o-mini</span></td><td class="num">~$0.0001</td></tr>
+        <tr><td>Retrieve</td><td><span class="kbd">text-embedding-3-small</span></td><td class="num">~$0.00001</td></tr>
+        <tr><td>Draft</td><td><span class="kbd">claude-sonnet-4.6</span></td><td class="num">~$0.0009</td></tr>
+        <tr><td><b>Total</b></td><td>smart routing</td><td class="num"><b>~$0.001</b></td></tr>
+        <tr><td></td><td>everything on flagship</td><td style="color:#f08a8a; font-family:Consolas,monospace">~$0.01+</td></tr>
+      </table>
+    </div>
+    <div style="display:flex; flex-direction:column; justify-content:center; align-items:center; text-align:center">
+      <div class="savings">~90%</div>
+      <p class="sub" style="margin-top:2mm">cheaper per ticket —<br>computed from <b style="color:#fff">real token usage</b><br>and shown on screen after every run</p>
+    </div>
+  </div>
+</section>
+
+<!-- SLIDE 6 — ARCHITECTURE -->
+<section class="slide" data-num="6">
+  <div class="brand">TICKET WHISPERER</div>
+  <h2>Built <span class="accent">lean</span></h2>
+  <ul class="big">
+    <li><b>Node.js / Express</b> — thin orchestrator; dependencies are express + dotenv only.</li>
+    <li><b>Zero database.</b> Knowledge base is a JSON file, embedded at startup via Mesh embeddings, held in memory.</li>
+    <li><b>SSE streaming</b> — each stage streams status, output, and cost to the browser live, driving the pipeline animation and cost meter.</li>
+    <li><b>BYO-key UI</b> — judges paste their own Mesh key on the page; it stays in localStorage, never stored or logged server-side.</li>
+    <li><b>Mesh integration:</b> <span class="kbd">lib/mesh.js</span> (sole AI client) · <span class="kbd">lib/pipeline.js</span> (3-step triage) · <span class="kbd">lib/pricing.js</span> (live /models pricing)</li>
+  </ul>
+</section>
+
+<!-- SLIDE 7 — DEMO & LINKS -->
+<section class="slide" data-num="7">
+  <div class="brand">TICKET WHISPERER</div>
+  <h2>Try it <span class="accent">right now</span></h2>
+  <p class="sub">Open the live demo, paste your Mesh key, pick a sample ticket, hit <b style="color:#fff">⚡ Analyze</b> — and watch three providers cooperate on one ticket while the meter counts the cost.</p>
+  <div class="footer-links">
+    <b>Live demo</b> · <span>https://ticket-whisperer.onrender.com</span><br>
+    <b>Video walkthrough</b> · <span>https://www.loom.com/share/e6031bedf95646e89d8f0cd255271d44</span><br>
+    <b>Source</b> · <span>https://github.com/sk5202/ticket-whisperer</span>
+  </div>
+  <p class="sub" style="margin-top:12mm; font-size:13pt">Ticket Whisperer — <b style="color:#fff">automate the triage, stop overpaying for it.</b></p>
+</section>
+
+</body>
+</html>

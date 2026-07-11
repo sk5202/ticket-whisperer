@@ -353,9 +353,9 @@
   <section class="card input-card">
     <div class="key-row">
       <label for="apiKeyInput">🔑 Mesh API Key</label>
-      <input id="apiKeyInput" type="password" placeholder="rsk_… — paste your Mesh API key to run the analysis" spellcheck="false" autocomplete="off" />
+      <input id="apiKeyInput" type="password" placeholder="Optional — demo key active. Paste your own rsk_… key to use it instead" spellcheck="false" autocomplete="off" />
       <button id="keyToggle" type="button" aria-label="Show or hide API key">👁 Show</button>
-      <span class="key-hint">Stored only in your browser (localStorage) and sent only to this local server — never committed, never logged. Leave empty to use the server's .env key.</span>
+      <span class="key-hint">Optional — leave empty to use the built-in demo key. If you paste your own key it takes priority, is used only for your own requests, never stored or logged anywhere, and disappears on refresh.</span>
     </div>
     <textarea id="ticketInput" placeholder="Paste a customer support ticket…" spellcheck="false"></textarea>
     <div class="input-row">
@@ -480,24 +480,11 @@
   /* ---------------- API key (judge-friendly): persisted in localStorage ---------------- */
   var apiKeyInput = $("apiKeyInput");
   var keyToggle = $("keyToggle");
-  var KEY_STORAGE = "mesh_api_key";
-  try {
-    var savedKey = localStorage.getItem(KEY_STORAGE);
-    if (savedKey) apiKeyInput.value = savedKey;
-  } catch (e) { /* storage unavailable (private mode) — key just won't persist */ }
-  /* Prefill from the server's demo key so judges can hit Analyze with zero setup.
-     Never overwrites a key the visitor typed themselves. */
-  if (!apiKeyInput.value) {
-    fetch("/api/config").then(function (r) { return r.json(); }).then(function (cfg) {
-      if (cfg && cfg.prefillKey && !apiKeyInput.value) {
-        apiKeyInput.value = cfg.prefillKey;
-        try { localStorage.setItem(KEY_STORAGE, cfg.prefillKey); } catch (e) {}
-      }
-    }).catch(function () { /* no config endpoint / offline — field stays empty */ });
-  }
-  apiKeyInput.addEventListener("input", function () {
-    try { localStorage.setItem(KEY_STORAGE, apiKeyInput.value.trim()); } catch (e) {}
-  });
+  /* A visitor's key lives ONLY in this input for the current page view — no
+     localStorage, no cookies, nothing server-side. Refreshing wipes it; the
+     field starts empty and the server's demo key covers empty-field requests.
+     Also scrub any key an older build persisted. */
+  try { localStorage.removeItem("mesh_api_key"); } catch (e) {}
   keyToggle.addEventListener("click", function () {
     var hidden = apiKeyInput.type === "password";
     apiKeyInput.type = hidden ? "text" : "password";

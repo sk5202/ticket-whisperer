@@ -25,12 +25,6 @@ app.get('/api/health', (req, res) => {
   res.json({ ok: true });
 });
 
-// Demo convenience: expose the server key so the UI can prefill the 🔑 field.
-// Deliberate trade-off for the hackathon (judges get a zero-setup demo) —
-// keep only a low-balance key here and rotate it after judging.
-app.get('/api/config', (req, res) => {
-  res.json({ prefillKey: SERVER_KEY });
-});
 
 app.post('/api/analyze', async (req, res) => {
   const ticket = req.body && req.body.ticket;
